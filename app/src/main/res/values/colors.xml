@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="amarelo">#FFD400</color>
+    <color name="amarelo_claro">#FFF0A6</color>
+    <color name="amarelo_escuro">#E0AE00</color>
+    <color name="tinta">#171717</color>
+    <color name="tinta_fraca">#5C4A00</color>
+    <color name="papel">#FFFDF2</color>
+    <color name="branco">#FFFFFF</color>
+    <color name="verde">#1B8E3C</color>
+    <color name="vermelho">#C62828</color>
+</resources>

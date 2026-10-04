@@ -1,0 +1,32 @@
+# Toolchain portable (JDK, Android SDK, emulator) — ~4 GB, nao versionar
+/toolchain/
+
+# Build
+build/
+*/build/
+.gradle/
+.kotlin/
+
+# Configuracao local de paths
+local.properties
+
+# Segredos: NUNCA versionar keystore nem senhas
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Logs e artefatos temporarios
+*.log
+dl.log
+out/
+captures/
+*.apk
+*.aab
+*.idsig
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store

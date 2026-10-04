@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AmareloWatch" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/amarelo</item>
+        <item name="colorOnPrimary">@color/tinta</item>
+        <item name="colorSecondary">@color/tinta</item>
+        <item name="colorOnSecondary">@color/amarelo</item>
+        <item name="android:colorBackground">@color/amarelo</item>
+        <item name="android:statusBarColor">@color/amarelo</item>
+        <item name="android:navigationBarColor">@color/amarelo_escuro</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <style name="AmareloTitulo">
+        <item name="android:textColor">@color/tinta</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <style name="AmareloRotulo">
+        <item name="android:textColor">@color/tinta_fraca</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="AmareloValor">
+        <item name="android:textColor">@color/tinta</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+</resources>

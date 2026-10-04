@@ -1,0 +1,2 @@
+-keep class br.com.amarelowatch.** { *; }
+-dontwarn com.google.zxing.**

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Amarelo Watch</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100%; overflow:hidden; background:#000;
+    font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+    cursor:none;
+  }
+  #fundo {
+    position:fixed; inset:0; display:none;
+    align-items:center; justify-content:center; flex-direction:column;
+    background:#FFD400; color:#171717; text-align:center; padding:24px;
+  }
+  #fundo.on { display:flex; }
+  #fundo h1 { font-size:38px; font-weight:800; letter-spacing:-0.02em; }
+  #fundo p  { font-size:19px; margin-top:14px; max-width:520px; line-height:1.45; opacity:.75; }
+  .anel { width:56px; height:56px; border-radius:50%; border:6px solid rgba(23,23,23,.18);
+          border-top-color:#171717; margin-bottom:24px; animation:gira 1s linear infinite; }
+  @keyframes gira { to { transform:rotate(360deg); } }
+
+  #tela { position:fixed; inset:0; width:100%; height:100%; background:#000; }
+  #telaImg { width:100%; height:100%; object-fit:contain; display:block; }
+
+  #barra {
+    position:fixed; top:0; left:0; right:0; padding:14px 22px;
+    display:flex; align-items:center; gap:14px;
+    background:rgba(23,23,23,.82); color:#FFD400; font-size:17px; font-weight:700;
+    transition:transform .25s ease; z-index:5;
+  }
+  #barra.escondida { transform:translateY(-100%); }
+  #ponto { width:12px; height:12px; border-radius:50%; background:#FFD400; flex:0 0 auto; }
+  #ponto.off { background:#888; }
+  #estado { color:#EDE7D6; font-weight:400; font-size:15px; }
+  #ajuda {
+    position:fixed; bottom:0; left:0; right:0; padding:12px 22px; text-align:center;
+    background:rgba(23,23,23,.7); color:#EDE7D6; font-size:14px;
+    transition:transform .25s ease; z-index:5;
+  }
+  #ajuda.escondida { transform:translateY(100%); }
+</style>
+</head>
+<body>
+
+<div id="tela" style="display:none"></div>
+
+<div id="fundo" class="on">
+  <div class="anel"></div>
+  <h1>Amarelo Watch</h1>
+  <p id="fundo-msg">Conectando ao celular…</p>
+</div>
+
+<div id="barra" class="escondida">
+  <span id="ponto" class="off"></span>
+  <span>Amarelo Watch</span>
+  <span id="estado">aguardando</span>
+</div>
+
+<div id="ajuda" class="escondida">Toque na tela para mostrar ou esconder esta barra</div>
+
+<script>
+(function () {
+  var tela = document.getElementById('tela');
+  var fundo = document.getElementById('fundo');
+  var fundoMsg = document.getElementById('fundo-msg');
+  var barra = document.getElementById('barra');
+  var ajuda = document.getElementById('ajuda');
+  var ponto = document.getElementById('ponto');
+  var estado = document.getElementById('estado');
+
+  var STREAM = 'screen';
+  var img = document.createElement('img');
+  img.id = 'telaImg';
+  img.alt = 'Tela do celular';
+
+  var conectado = false;
+  var falhas = 0;
+  var ultimoFrame = 0;
+  var barraVisivel = false;
+
+  function definirEstado(texto, on) {
+    estado.textContent = texto;
+    ponto.className = on ? '' : 'off';
+  }
+
+  function mostrarTela() {
+    if (!img.parentNode) {
+      tela.appendChild(img);
+    }
+    tela.style.display = 'block';
+    fundo.className = '';
+  }
+
+  function mostrarFundo(msg) {
+    img.onload = img.onerror = null;
+    img.removeAttribute('src');
+    if (img.parentNode) { img.parentNode.removeChild(img); }
+    tela.style.display = 'none';
+    fundoMsg.textContent = msg || 'Conectando ao celular…';
+    fundo.className = 'on';
+  }
+
+  function ligarStream() {
+    img.onload = function () {
+      conectado = true;
+      falhas = 0;
+      ultimoFrame = new Date().getTime();
+      mostrarTela();
+      definirEstado('transmitindo', true);
+    };
+    img.onerror = function () {
+      conectado = false;
+      falhas++;
+      var espera = Math.min(1000 * falhas, 5000);
+      definirEstado('reconectando…', false);
+      mostrarFundo('Sinal interrompido. Tentando de novo…');
+      window.setTimeout(ligarStream, espera);
+    };
+    img.src = STREAM + '?t=' + new Date().getTime();
+  }
+
+  function verificarCelular() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'heartbeat?nocache=' + new Date().getTime(), true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) { return; }
+      var ativo = xhr.status === 200 && xhr.responseText.indexOf('"streaming":true') >= 0;
+      if (ativo) {
+        if (!conectado) {
+          mostrarTela();
+          ligarStream();
+        }
+        var agora = new Date().getTime();
+        if (conectado && agora - ultimoFrame > 12000) {
+          conectado = false;
+          definirEstado('sem quadros', false);
+          img.removeAttribute('src');
+          ligarStream();
+        }
+      } else if (!conectado) {
+        mostrarFundo('O celular está na tela, mas não está transmitindo. Toque em TRANSMITIR no app Amarelo Watch.');
+        definirEstado('aguardando', false);
+        window.setTimeout(verificarCelular, 2000);
+      } else {
+        definirEstado('sem quadros', false);
+      }
+    };
+    xhr.onerror = function () {
+      if (!conectado) {
+        mostrarFundo('Sem sinal do celular. Verifique se o app está transmitindo e se os dois estão no mesmo Wi-Fi.');
+        definirEstado('sem sinal', false);
+        window.setTimeout(verificarCelular, 2000);
+      } else {
+        definirEstado('reconectando…', false);
+        img.removeAttribute('src');
+        img.src = STREAM + '?t=' + new Date().getTime();
+      }
+    };
+    try { xhr.send(null); } catch (e) { window.setTimeout(verificarCelular, 2000); }
+  }
+
+  function alternarBarra() {
+    barraVisivel = !barraVisivel;
+    barra.className = barraVisivel ? '' : 'escondida';
+    ajuda.className = barraVisivel ? '' : 'escondida';
+    if (barraVisivel) {
+      window.setTimeout(function () { if (barraVisivel) { barraVisivel = false; barra.className = 'escondida'; ajuda.className = 'escondida'; } }, 6000);
+    }
+  }
+
+  function telaCheia() {
+    var el = document.documentElement;
+    var fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (fn) { try { fn.call(el); } catch (e) {} }
+  }
+
+  document.addEventListener('click', function () {
+    alternarBarra();
+    telaCheia();
+  }, false);
+
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length === 1) { e.preventDefault(); alternarBarra(); }
+  }, { passive: false });
+
+  document.addEventListener('keydown', function (e) {
+    var k = e.keyCode;
+    if (k === 13 || k === 32 || k === 27 || k === 19) {
+      e.preventDefault();
+      if (k === 19 || k === 27) { telaCheia(); } else { alternarBarra(); }
+    } else if (k === 403 || k === 461) {
+      alternarBarra();
+    }
+  }, false);
+
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, false);
+  document.addEventListener('dragstart', function (e) { e.preventDefault(); }, false);
+
+  mostrarFundo('Conectando ao celular…');
+  definirEstado('conectando…', false);
+  verificarCelular();
+  window.setInterval(verificarCelular, 4000);
+})();
+</script>
+</body>
+</html>

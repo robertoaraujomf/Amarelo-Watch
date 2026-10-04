@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Amarelo Watch</string>
+    <string name="app_tagline">Sua tela do celular na smart TV</string>
+
+    <string name="start">TRANSMITIR</string>
+    <string name="stop">PARAR</string>
+
+    <string name="label_status">Status</string>
+    <string name="status_idle">Parado</string>
+    <string name="status_starting">Iniciando…</string>
+    <string name="status_running">Transmitindo</string>
+    <string name="status_error">Erro</string>
+
+    <string name="label_open_on_tv">Abra na TV</string>
+    <string name="label_open_on_phone">Ver no celular</string>
+    <string name="hint_no_wifi">Conecte o celular e a TV no mesmo Wi-Fi.</string>
+
+    <string name="label_quality">Qualidade</string>
+    <string name="label_resolution">Resolução</string>
+    <string name="label_fps">Quadros por segundo</string>
+    <string name="label_jpeg">Qualidade da imagem</string>
+
+    <string name="label_stats">Transmissão</string>
+    <string name="stat_fps">Quadros</string>
+    <string name="stat_bitrate">Consumo</string>
+    <string name="stat_clients">TVs conectadas</string>
+    <string name="stat_resolution">Resolução</string>
+
+    <string name="label_log">Registro</string>
+    <string name="action_copy">Copiar</string>
+    <string name="action_copied">Copiado!</string>
+    <string name="cd_qr">QR code do endereço</string>
+
+    <string name="notif_channel_name">Transmissão</string>
+    <string name="notif_channel_desc">Aviso enquanto a tela é transmitida</string>
+    <string name="notif_title">Amarelo Watch transmitindo</string>
+    <string name="notif_stop">Parar</string>
+
+    <string name="msg_no_media_projection">É preciso permitir a captura de tela.</string>
+    <string name="msg_need_wifi">Sem Wi-Fi o endereço da TV não pode ser exibido.</string>
+    <string name="msg_qr_unavailable">Não foi possível gerar o QR code.</string>
+</resources>
