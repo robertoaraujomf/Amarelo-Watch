@@ -14,6 +14,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -42,12 +45,12 @@ class MainActivity : AppCompatActivity() {
 
     private val stateObserver: (Bridge.State) -> Unit = { state -> render(state) }
 
-    private var lastQrUrl: String? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        applyFullscreen()
 
         setupQualityControls()
         binding.btnToggle.setOnClickListener { onToggleClicked() }
@@ -55,6 +58,37 @@ class MainActivity : AppCompatActivity() {
 
         Bridge.log("Amarelo Watch pronto")
         refreshAddress()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyFullscreen()
+    }
+
+    /**
+     * Tela inteira de verdade: as barras do sistema saem e o conteúdo ocupa a
+     * tela toda. Um arrasto na borda traz as barras de volta temporariamente,
+     * e reaplicamos ao voltar do diálogo de captura, que sempre as restaura.
+     */
+    private fun applyFullscreen() {
+        // Sem FLAG_LAYOUT_NO_LIMITS/IN_SCREEN o sistema ainda reserva a faixa da
+        // barra de status e deixa um retângulo preto no topo da janela.
+        window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        binding.root.setOnApplyWindowInsetsListener { view, insets ->
+            val edges = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(edges.left, edges.top, edges.right, edges.bottom)
+            insets
+        }
+
+        WindowInsetsControllerCompat(window, binding.root).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     override fun onStart() {
@@ -182,9 +216,7 @@ class MainActivity : AppCompatActivity() {
 
         if (state.url != null && state.url != binding.txtUrl.text) {
             binding.txtUrl.text = state.url
-            lastQrUrl = null
         }
-        updateQr(state.url)
         binding.txtAvisoWifi.visibility =
             if (!Net.isOnWifi(this) && state.url == null) android.view.View.VISIBLE
             else android.view.View.GONE
@@ -201,23 +233,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateQr(url: String?) {
-        if (url == null || url == lastQrUrl) return
-        lastQrUrl = url
-        val bitmap = QrCode.encode(url, 320, fg = Color.BLACK, bg = Color.WHITE)
-        if (bitmap != null) {
-            binding.imgQr.setImageBitmap(bitmap)
-        } else {
-            binding.imgQr.setImageDrawable(null)
-            toast(getString(R.string.msg_qr_unavailable))
-        }
-    }
-
     private fun refreshAddress() {
         val port = Settings.load(this).port
         val url = Net.url(Net.localIp(this) ?: "IP-DO-CELULAR", port)
         binding.txtUrl.text = url
-        updateQr(url)
     }
 
     private fun formatBitrate(kbps: Int): String = when {

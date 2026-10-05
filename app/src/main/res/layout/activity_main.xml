@@ -163,44 +163,15 @@
                 android:textSize="13sp"
                 android:visibility="gone" />
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/txt_como_conectar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:id="@+id/img_qr"
-                    android:layout_width="128dp"
-                    android:layout_height="128dp"
-                    android:background="@color/branco"
-                    android:contentDescription="@string/cd_qr"
-                    android:padding="6dp" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        style="@style/AmareloValor"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Como conectar" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:lineSpacingExtra="3dp"
-                        android:text="1. Aponte a câmera da TV para o código.\n2. Abra a página e toque em tela cheia."
-                        android:textColor="#D8D2C4"
-                        android:textSize="13sp" />
-                </LinearLayout>
-            </LinearLayout>
+                android:layout_marginTop="14dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/msg_how_to_connect"
+                android:textColor="#D8D2C4"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <LinearLayout

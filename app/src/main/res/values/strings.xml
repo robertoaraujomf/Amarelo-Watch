@@ -30,7 +30,6 @@
     <string name="label_log">Registro</string>
     <string name="action_copy">Copiar</string>
     <string name="action_copied">Copiado!</string>
-    <string name="cd_qr">QR code do endereço</string>
 
     <string name="notif_channel_name">Transmissão</string>
     <string name="notif_channel_desc">Aviso enquanto a tela é transmitida</string>
@@ -39,5 +38,5 @@
 
     <string name="msg_no_media_projection">É preciso permitir a captura de tela.</string>
     <string name="msg_need_wifi">Sem Wi-Fi o endereço da TV não pode ser exibido.</string>
-    <string name="msg_qr_unavailable">Não foi possível gerar o QR code.</string>
+    <string name="msg_how_to_connect">1. Na TV, abra o navegador e digite o endereço acima.\n2. Toque na tela para colocar em tela cheia.</string>
 </resources>

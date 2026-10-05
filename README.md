@@ -2,8 +2,9 @@
 
 Transmita a tela do celular para qualquer smart TV na mesma rede Wi-Fi.
 
-O app abre um servidor HTTP local e mostra um QR code. Você aponta a câmera
-da TV, abre a página no navegador e a tela aparece em tempo real.
+O app abre um servidor HTTP local e mostra o endereço da rede. Você digita
+esse endereço no navegador da TV e a tela aparece em tempo real. O app em si
+abre em tela inteira, sem as barras do sistema.
 
 ## Como funciona
 

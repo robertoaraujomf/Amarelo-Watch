@@ -6,10 +6,15 @@
         <item name="colorSecondary">@color/tinta</item>
         <item name="colorOnSecondary">@color/amarelo</item>
         <item name="android:colorBackground">@color/amarelo</item>
-        <item name="android:statusBarColor">@color/amarelo</item>
-        <item name="android:navigationBarColor">@color/amarelo_escuro</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <!-- Sem isso o sistema recorta a janela na faixa do notch/cutout e
+             deixa um retângulo preto no topo. -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
     <style name="AmareloTitulo">
