@@ -192,11 +192,7 @@ class MainActivity : AppCompatActivity() {
         binding.valorFps.text = if (state.streaming) "${state.fps} fps" else "—"
         binding.valorBitrate.text = if (state.streaming) formatBitrate(state.kbps) else "—"
         binding.valorClientes.text = state.clients.toString()
-        binding.valorResolucao.text = when {
-            state.width <= 0 -> "—"
-            state.letterboxed -> "${state.width}×${state.height} ⚠"
-            else -> "${state.width}×${state.height}"
-        }
+        binding.valorResolucao.text = if (state.width > 0) "${state.width}×${state.height}" else "—"
 
         if (state.streaming) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

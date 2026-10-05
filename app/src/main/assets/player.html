@@ -25,8 +25,11 @@
           border-top-color:#171717; margin-bottom:24px; animation:gira 1s linear infinite; }
   @keyframes gira { to { transform:rotate(360deg); } }
 
-  #tela { position:fixed; inset:0; width:100%; height:100%; background:#000; }
-  #telaImg { width:100%; height:100%; object-fit:contain; display:block; }
+  #tela { position:fixed; inset:0; width:100%; height:100%; background:#000;
+          display:none; align-items:center; justify-content:center; }
+  /* letterbox: fundo preto, imagem centralizada sem distorcer */
+  #tela.preenchido { align-items:stretch; justify-content:stretch; }
+  #telaImg { max-width:100%; max-height:100%; object-fit:contain; display:block; }
 
   #barra {
     position:fixed; top:0; left:0; right:0; padding:14px 22px;
@@ -83,17 +86,35 @@
   var falhas = 0;
   var ultimoFrame = 0;
   var barraVisivel = false;
+  var larguraAtual = 0;
+  var alturaAtual = 0;
 
   function definirEstado(texto, on) {
     estado.textContent = texto;
     ponto.className = on ? '' : 'off';
   }
 
+  /*
+   * O celular pode girar durante a transmissão. Como o fluxo MJPEG não
+   * carrega metadados, usamos a propria imagem: quando o quadro novo tem
+   * proporção diferente, reajustamos o container para ela.
+   */
+  function acompanharProporcao() {
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    if (img.naturalWidth === larguraAtual && img.naturalHeight === alturaAtual) return;
+    larguraAtual = img.naturalWidth;
+    alturaAtual = img.naturalHeight;
+    tela.className = '';
+    img.style.width = '';
+    img.style.height = '';
+    definirEstado('transmitindo ' + larguraAtual + '×' + alturaAtual, true);
+  }
+
   function mostrarTela() {
     if (!img.parentNode) {
       tela.appendChild(img);
     }
-    tela.style.display = 'block';
+    tela.style.display = 'flex';
     fundo.className = '';
   }
 
@@ -101,7 +122,10 @@
     img.onload = img.onerror = null;
     img.removeAttribute('src');
     if (img.parentNode) { img.parentNode.removeChild(img); }
+    larguraAtual = 0;
+    alturaAtual = 0;
     tela.style.display = 'none';
+    tela.className = '';
     fundoMsg.textContent = msg || 'Conectando ao celular…';
     fundo.className = 'on';
   }
@@ -112,7 +136,7 @@
       falhas = 0;
       ultimoFrame = new Date().getTime();
       mostrarTela();
-      definirEstado('transmitindo', true);
+      acompanharProporcao();
     };
     img.onerror = function () {
       conectado = false;
@@ -130,8 +154,31 @@
     xhr.open('GET', 'heartbeat?nocache=' + new Date().getTime(), true);
     xhr.onreadystatechange = function () {
       if (xhr.readyState !== 4) { return; }
+      if (!conectado) {
+        var mr0 = xhr.responseText && xhr.responseText.match
+          ? xhr.responseText.match(/"width":(\d+),"height":(\d+)/) : null;
+        if (mr0) {
+          larguraAtual = parseInt(mr0[1], 10);
+          alturaAtual = parseInt(mr0[2], 10);
+        }
+      }
       var ativo = xhr.status === 200 && xhr.responseText.indexOf('"streaming":true') >= 0;
       if (ativo) {
+        var mr = xhr.responseText.match(/"width":(\d+),"height":(\d+)/);
+        if (mr && conectado) {
+          var largura = parseInt(mr[1], 10);
+          var altura = parseInt(mr[2], 10);
+          // Se o celular girou mas a imagem ainda é a anterior, forçamos a
+          // reconfiguração do elemento para pegar o quadro novo.
+          if (largura > 0 && altura > 0 &&
+              (largura !== larguraAtual || altura !== alturaAtual) &&
+              (!img.naturalWidth || img.naturalWidth !== largura)) {
+            img.style.width = '1px';
+            img.style.height = '1px';
+            tela.className = '';
+          }
+        }
+
         if (!conectado) {
           mostrarTela();
           ligarStream();

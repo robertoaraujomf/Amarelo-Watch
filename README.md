@@ -18,7 +18,11 @@ Celular (Android 8+)                    Smart TV
 └────────────────────┘
 ```
 
-- **Captura:** `MediaProjection` → `VirtualDisplay` → `ImageReader` em `RGBA_8888`.
+- **Captura:** `MediaProjection` → `VirtualDisplay` → `ImageReader` em `RGBA_8888`,
+  com o reader sempre do mesmo tamanho da tela virtual.
+- **Giro:** ao virar o celular, a `VirtualDisplay` é redimensionada e a
+  superfície trocada com `setSurface()`. Reader e tela ficam com as mesmas
+  dimensões, então o quadro chega inteiro na TV, sem tarjas pretas.
 - **Transporte:** servidor HTTP próprio (sem dependências Android) servindo
   `multipart/x-mixed-replace`, que qualquer navegador exibe nativamente.
 - **Vídeo apenas, sem áudio.**
@@ -59,16 +63,13 @@ normalmente em debug, mas não vai para a Play Store.
 Cobre o protocolo HTTP: HTML do player, JSON do heartbeat, multipart MJPEG,
 `snapshot.jpg`, fallback de porta, encerramento limpo e ausência de lixo no
 buffer.
-
 ## Limitações conhecidas
 
-- **Girar o celular durante a transmissão:** o Android não permite
-  redimensionar uma `MediaProjection` já criada, então a stream mantém a
-  orientação em que foi iniciada e o conteúdo aparece com tarjas pretas. O
-  app avisa na tela. Para usar toda a resolução, volte à orientação original
-  ou pare e transmita de novo já na orientação desejada.
-- Android 8–9 (`minSdk 24`) não tem `VirtualDisplay.resize()`, então não
-  há como recuperar resolução após girar.
+- **Girar o celular:** funciona a partir do Android 10 (`API 26`), que tem
+  `VirtualDisplay.resize()` e aceita `setSurface()`. A stream acompanha o giro
+  e o player da TV reajusta a proporção sozinho.
+- Android 8–9 (`minSdk 24`) não tem esses métodos, então a stream mantém a
+  orientação em que foi iniciada. O app avisa na tela quando detecta isso.
 - Sem áudio, por opção de projeto.
 - O desempenho real em smart TV não foi medido em hardware de consumo; a
   validação foi feita em emulador com renderização por software.

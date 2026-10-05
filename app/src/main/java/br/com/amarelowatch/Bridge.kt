@@ -18,7 +18,7 @@ object Bridge {
         val width: Int = 0,
         val height: Int = 0,
         val mode: String = "",
-        val letterboxed: Boolean = false,
+        val rotation: Int = 0,
         val error: String? = null,
     )
 

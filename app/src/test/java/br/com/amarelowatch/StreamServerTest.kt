@@ -90,6 +90,31 @@ class StreamServerTest {
             assertEquals("application/json", headers["content-type"])
             assertTrue(body.contains("\"clients\":0"))
             assertTrue(body.contains("\"port\":$port"))
+            assertTrue(body.contains("\"width\":0"))
+            assertTrue(body.contains("\"rotation\":0"))
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun heartbeatReportsGeometryForTvPlayer() {
+        val server = buildServer()
+        val port = server.start(19_521)
+        try {
+            server.setGeometry(1600, 720, 1)
+            val (_, body) = get("/heartbeat", port)
+            assertTrue(body.contains("\"width\":1600"))
+            assertTrue(body.contains("\"height\":720"))
+            assertTrue(body.contains("\"rotation\":1"))
+
+            // Girar de novo precisa aparecer no heartbeat: e o player da TV
+            // que usa isso para reajustar o aspectRatio.
+            server.setGeometry(720, 1600, 0)
+            val (_, after) = get("/heartbeat", port)
+            assertTrue(after.contains("\"width\":720"))
+            assertTrue(after.contains("\"height\":1600"))
+            assertTrue(after.contains("\"rotation\":0"))
         } finally {
             server.stop()
         }

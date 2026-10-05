@@ -39,6 +39,20 @@ class StreamServer(
     @Volatile
     private var latestFrame: ByteArray? = null
 
+    /**
+     * Geometria do quadro atual. O player da TV consulta isso pelo heartbeat
+     * para reajustar o aspectRatio quando o celular gira, já que o
+     * multipart/x-mixed-replace não carrega metadados por quadro.
+     */
+    @Volatile
+    private var streamWidth = 0
+
+    @Volatile
+    private var streamHeight = 0
+
+    @Volatile
+    private var streamRotation = 0
+
     @Volatile
     private var running = false
 
@@ -87,6 +101,9 @@ class StreamServer(
         viewers.clear()
         viewerCount.set(0)
         latestFrame = null
+        streamWidth = 0
+        streamHeight = 0
+        streamRotation = 0
         bytesSent.set(0)
         framesSent.set(0)
         acceptThread = null
@@ -105,6 +122,14 @@ class StreamServer(
         latestFrame = null
     }
 
+    fun setGeometry(width: Int, height: Int, rotation: Int) {
+        if (streamWidth == width && streamHeight == height && streamRotation == rotation) return
+        streamWidth = width
+        streamHeight = height
+        streamRotation = rotation
+        log("Quadro agora em ${width}×${height}")
+    }
+
     fun statsJson(): String {
         val now = System.nanoTime()
         val started = startedAt.get()
@@ -112,7 +137,9 @@ class StreamServer(
         val totalBytes = bytesSent.get()
         val kbps = if (seconds > 0.5) ((totalBytes * 8.0) / seconds / 1000.0).toInt() else 0
         val fps = if (seconds > 0.5) (framesSent.get() / seconds).toInt() else 0
-        return """{"clients":${viewerCount.get()},"streaming":${latestFrame != null},"kbps":$kbps,"fps":$fps,"port":$port}"""
+        return """{"clients":${viewerCount.get()},"streaming":${latestFrame != null},""" +
+            """"kbps":$kbps,"fps":$fps,"port":$port,""" +
+            """"width":$streamWidth,"height":$streamHeight,"rotation":$streamRotation}"""
     }
 
     fun resetCounters() {

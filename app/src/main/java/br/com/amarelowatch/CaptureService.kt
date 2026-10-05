@@ -164,10 +164,12 @@ class CaptureService : Service(), ScreenCapturer.Listener {
         }
     }
 
-    override fun onGeometry(width: Int, height: Int, mode: String, letterboxed: Boolean) {
+    override fun onGeometry(width: Int, height: Int, mode: String, rotation: Int) {
+        // O player da TV lê width/height do heartbeat para ajustar o aspectRatio.
+        server?.setGeometry(width, height, rotation)
         postToUi {
             Bridge.update {
-                it.copy(width = width, height = height, mode = mode, letterboxed = letterboxed)
+                it.copy(width = width, height = height, mode = mode, rotation = rotation)
             }
         }
     }
