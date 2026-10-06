@@ -1,5 +1,6 @@
 package br.com.amarelowatch
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
@@ -22,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong
 class CaptureService : Service(), ScreenCapturer.Listener {
 
     private var capturer: ScreenCapturer? = null
+    private var audioCapturer: AudioCapturer? = null
     private var server: StreamServer? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -174,6 +177,55 @@ class CaptureService : Service(), ScreenCapturer.Listener {
         }
     }
 
+    /**
+     * A projeção do vídeo é a mesma que autoriza o áudio. Sem isso não há som
+     * na TV, mas vídeo continua funcionando — o player trata a falta de áudio
+     * como estado normal, não como erro.
+     */
+    override fun onProjection(projection: android.media.projection.MediaProjection) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Bridge.log("Áudio: precisa de Android 10 ou mais novo. A TV recebe só o vídeo.")
+            postToUi { Bridge.update { it.copy(audio = false) } }
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            Bridge.log("Áudio: sem permissão de microfone, a TV recebe só o vídeo.")
+            postToUi { Bridge.update { it.copy(audio = false) } }
+            return
+        }
+
+        val created = AudioCapturer(projection, audioListener)
+        audioCapturer = created
+        created.start()
+    }
+
+    private val audioListener = object : AudioCapturer.Listener {
+        override fun onAudioChunk(aac: ByteArray) {
+            server?.publishAudio(aac)
+        }
+
+        override fun onAvailable() {
+            postToUi {
+                Bridge.update { it.copy(audio = true) }
+                Bridge.log("Áudio sendo enviado para a TV.")
+            }
+        }
+
+        override fun onUnavailable(reason: String) {
+            server?.setAudioAvailable(false)
+            postToUi {
+                Bridge.update { it.copy(audio = false) }
+                Bridge.log("Sem áudio na TV: $reason")
+            }
+        }
+
+        override fun onLog(message: String) {
+            postToUi { Bridge.log("Áudio: $message") }
+        }
+    }
+
     // ------------------------------------------------------------- helpers
 
     private fun postToUi(block: () -> Unit) {
@@ -184,12 +236,14 @@ class CaptureService : Service(), ScreenCapturer.Listener {
         mainHandler.removeCallbacks(statsTick)
         capturer?.release()
         capturer = null
+        audioCapturer?.release()
+        audioCapturer = null
         server?.stop()
         server = null
         runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
         wakeLock = null
         reason?.let { Bridge.log(it) }
-        Bridge.update { it.copy(streaming = false, starting = false, clients = 0) }
+        Bridge.update { it.copy(streaming = false, starting = false, clients = 0, audio = false) }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

@@ -47,11 +47,15 @@
     transition:transform .25s ease; z-index:5;
   }
   #ajuda.escondida { transform:translateY(100%); }
+  #som {
+    position:fixed; width:1px; height:1px; opacity:0; pointer-events:none; left:0; bottom:0;
+  }
 </style>
 </head>
 <body>
 
 <div id="tela" style="display:none"></div>
+<audio id="som" preload="none"></audio>
 
 <div id="fundo" class="on">
   <div class="anel"></div>
@@ -65,7 +69,7 @@
   <span id="estado">aguardando</span>
 </div>
 
-<div id="ajuda" class="escondida">Toque na tela para mostrar ou esconder esta barra</div>
+<div id="ajuda" class="escondida">Toque para mostrar ou esconder esta barra e ativar o som</div>
 
 <script>
 (function () {
@@ -78,9 +82,12 @@
   var estado = document.getElementById('estado');
 
   var STREAM = 'screen';
+  var AUDIO = 'audio.aac';
   var img = document.createElement('img');
   img.id = 'telaImg';
   img.alt = 'Tela do celular';
+
+  var som = document.getElementById('som');
 
   var conectado = false;
   var falhas = 0;
@@ -89,9 +96,71 @@
   var larguraAtual = 0;
   var alturaAtual = 0;
 
+  /*
+   * O som chega por um fluxo separado: o multipart/x-mixed-replace é só de
+   * imagem. Como não existe âncora comum entre vídeo e áudio, o áudio carrega
+   * o próprio atraso — na prática some algo entre 0,3 e 1 s atrás da imagem.
+   *
+   * Regra que vale mais que qualquer ajuste fino: áudio nunca pode derrubar o
+   * vídeo. Se o stream de som falhar, for DRM, ou o navegador recusar tocar,
+   * seguimos só com a imagem e avisamos na barra.
+   */
+  var somTentativas = 0;
+  var somLigado = false;
+  var audioPronto = false;
+  var gestoPendente = false;
+
   function definirEstado(texto, on) {
     estado.textContent = texto;
     ponto.className = on ? '' : 'off';
+  }
+
+  function marcarSom(base) {
+    estado.textContent = somLigado ? base + ' · som' : base;
+    ponto.className = somLigado ? '' : 'off';
+  }
+
+  function ligarAudio() {
+    if (!audioPronto || somTentativas > 6) { return; }
+    som.onplaying = function () {
+      somLigado = true;
+    };
+    som.onerror = function () {
+      somTentativas++;
+      var espera = Math.min(2000 * somTentativas, 20000);
+      window.setTimeout(ligarAudio, espera);
+    };
+    som.onstalled = function () {
+      // O buffer esvazia quando o celular demora a produzir; recarrega a fonte.
+      somTentativas++;
+      var espera = Math.min(1500 * somTentativas, 20000);
+      window.setTimeout(ligarAudio, espera);
+    };
+
+    som.src = AUDIO + '?t=' + new Date().getTime();
+    var tentativa = som.play();
+    if (tentativa && tentativa.catch) {
+      tentativa.catch(function () {
+        // Política de autoplay: sem gesto do usuário o navegador recusa.
+        gestoPendente = true;
+        definirEstado('toque para ativar o som', false);
+      });
+    }
+  }
+
+  function destravarAudio() {
+    if (!gestoPendente) { return; }
+    gestoPendente = false;
+    somTentativas = 0;
+    ligarAudio();
+  }
+
+  function pararAudio() {
+    somLigado = false;
+    som.onplaying = som.onerror = som.onstalled = null;
+    try { som.pause(); } catch (e) {}
+    som.removeAttribute('src');
+    try { som.load(); } catch (e) {}
   }
 
   /*
@@ -137,6 +206,8 @@
       ultimoFrame = new Date().getTime();
       mostrarTela();
       acompanharProporcao();
+      // Caso o celular já estivesse mandando áudio quando a imagem chegou.
+      if (audioPronto && !somLigado && !gestoPendente) { ligarAudio(); }
     };
     img.onerror = function () {
       conectado = false;
@@ -164,6 +235,22 @@
       }
       var ativo = xhr.status === 200 && xhr.responseText.indexOf('"streaming":true') >= 0;
       if (ativo) {
+        var mrAudio = xhr.responseText.match(/"audioReady":(true|false)/);
+        if (mrAudio) {
+          var agoraTemAudio = mrAudio[1] === 'true';
+          if (agoraTemAudio !== audioPronto) {
+            audioPronto = agoraTemAudio;
+            if (audioPronto) {
+              somTentativas = 0;
+              ligarAudio();
+            } else {
+              // Celular sem áudio: para de repetir requisição à toa.
+              somTentativas = 7;
+              pararAudio();
+              marcarSom('vídeo sem som');
+            }
+          }
+        }
         var mr = xhr.responseText.match(/"width":(\d+),"height":(\d+)/);
         if (mr && conectado) {
           var largura = parseInt(mr[1], 10);
@@ -230,10 +317,11 @@
   document.addEventListener('click', function () {
     alternarBarra();
     telaCheia();
+    destravarAudio();
   }, false);
 
   document.addEventListener('touchstart', function (e) {
-    if (e.touches.length === 1) { e.preventDefault(); alternarBarra(); }
+    if (e.touches.length === 1) { e.preventDefault(); alternarBarra(); destravarAudio(); }
   }, { passive: false });
 
   document.addEventListener('keydown', function (e) {
@@ -244,6 +332,7 @@
     } else if (k === 403 || k === 461) {
       alternarBarra();
     }
+    destravarAudio();
   }, false);
 
   document.addEventListener('contextmenu', function (e) { e.preventDefault(); }, false);

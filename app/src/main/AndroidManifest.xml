@@ -8,6 +8,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Necessária para o AudioPlaybackCaptureConfiguration: sem ela o
+         AudioRecord é recusado e a TV fica só com o vídeo. -->
+    <!-- Necessária para o AudioPlaybackCaptureConfiguration: sem ela o
+         AudioRecord é recusado e a TV fica só com o vídeo. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- O Android 10+ passa a mostrar um seletor de apps na captura de áudio.
+         Declaramos isso para não receber o alerta de instalação do sistema. -->
+    
 
     <application
         android:allowBackup="false"

@@ -231,4 +231,106 @@ class StreamServerTest {
         val out = ByteArrayOutputStream()
         assertEquals(0, out.size())
     }
+
+    @Test
+    fun serveAudioStreamChunked() {
+        val server = buildServer()
+        val port = server.start(19_506)
+        val payload = ByteArray(48) { 0x7F }
+        val received = CountDownLatch(2)
+        val errors = java.util.Collections.synchronizedList(ArrayList<Throwable>())
+
+        try {
+            val reader = Thread {
+                try {
+                    Socket("127.0.0.1", port).use { socket ->
+                        socket.soTimeout = 8000
+                        socket.getOutputStream().apply {
+                            write("GET /audio.aac HTTP/1.1\r\nHost: x\r\n\r\n".toByteArray())
+                            flush()
+                        }
+                        val input = BufferedInputStream(socket.getInputStream())
+                        assertTrue(readLine(input).orEmpty().contains("200 OK"))
+                        val headers = readHeaders(input)
+                        assertEquals("audio/aac", headers["content-type"])
+                        // Sem Content-Length: o fluxo nunca termina, e o
+                        // navegador precisa disso para tocar em vez de esperar
+                        // o arquivo inteiro.
+                        assertEquals(null, headers["content-length"])
+                        assertEquals("chunked", headers["transfer-encoding"])
+
+                        repeat(2) {
+                            val size = readLine(input).orEmpty().trim().toInt(16)
+                            val data = ByteArray(size)
+                            var lido = 0
+                            while (lido < size) {
+                                val n = input.read(data, lido, size - lido)
+                                if (n < 0) throw IllegalStateException("stream encerrado")
+                                lido += n
+                            }
+                            assertEquals(payload.size, size)
+                            assertEquals(0x7F, data[0].toInt())
+                            assertEquals("", readLine(input).orEmpty())
+                            received.countDown()
+                        }
+                    }
+                } catch (t: Throwable) {
+                    errors.add(t)
+                }
+            }
+            reader.isDaemon = true
+            reader.start()
+
+            val publisher = Thread {
+                repeat(12) {
+                    Thread.sleep(120)
+                    server.publishAudio(payload)
+                }
+            }
+            publisher.isDaemon = true
+            publisher.start()
+
+            assertTrue("não recebeu os quadros de áudio: $errors", received.await(10, TimeUnit.SECONDS))
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun heartbeatReportsAudioState() {
+        val server = buildServer()
+        val port = server.start(19_507)
+        try {
+            val (_, before) = get("/heartbeat", port)
+            assertTrue(before.contains("\"audioReady\":false"))
+            assertTrue(before.contains("\"audio\":false"))
+
+            server.publishAudio(ByteArray(16))
+            val (_, depois) = get("/heartbeat", port)
+            assertTrue(depois.contains("\"audioReady\":true"))
+            assertTrue(depois.contains("\"audio\":true"))
+
+            // Sem áudio o player precisa saber para parar de pedir.
+            server.setAudioAvailable(false)
+            val (_, semAudio) = get("/heartbeat", port)
+            assertTrue(semAudio.contains("\"audioReady\":false"))
+            assertTrue(semAudio.contains("\"audio\":false"))
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun audioAloneDoesNotFakeVideo() {
+        val server = buildServer()
+        val port = server.start(19_508)
+        try {
+            server.publishAudio(ByteArray(16))
+            val (_, body) = get("/heartbeat", port)
+            // O vídeo continua desligado: o player não pode achar que há tela.
+            assertTrue(body.contains("\"streaming\":false"))
+        } finally {
+            server.stop()
+        }
+    }
 }

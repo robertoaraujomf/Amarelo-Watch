@@ -43,6 +43,16 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { }
 
+    private val audioPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        // Recusar não impede a transmissão: o app só vai sem som.
+        if (!granted) {
+            Bridge.log(getString(R.string.msg_audio_denied))
+        }
+        askProjectionPermission()
+    }
+
     private val stateObserver: (Bridge.State) -> Unit = { state -> render(state) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,9 +129,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         askNotificationPermission()
-        Bridge.log("Solicitando permissão de captura…")
         Bridge.update { it.copy(starting = true, error = null) }
 
+        if (podeCapturarAudio() && !temPermissaoAudio()) {
+            // O diálogo do microfone vem antes: dois diálogos do sistema não
+            // podem ficar na tela ao mesmo tempo, e sem isso a captura de áudio
+            // seria recusada silenciosamente.
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            askProjectionPermission()
+        }
+    }
+
+    private fun podeCapturarAudio(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+
+    private fun temPermissaoAudio(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun askProjectionPermission() {
+        Bridge.log("Solicitando permissão de captura…")
         val manager = getSystemService(MediaProjectionManager::class.java)
         runCatching { manager.createScreenCaptureIntent() }
             .onSuccess { projectionLauncher.launch(it) }

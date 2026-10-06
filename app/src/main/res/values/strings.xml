@@ -37,6 +37,7 @@
     <string name="notif_stop">Parar</string>
 
     <string name="msg_no_media_projection">É preciso permitir a captura de tela.</string>
+    <string name="msg_audio_denied">Sem a permissão de microfone a TV fica só com o vídeo. O som do celular não vai ser transmitido.</string>
     <string name="msg_need_wifi">Sem Wi-Fi o endereço da TV não pode ser exibido.</string>
     <string name="msg_how_to_connect">1. Na TV, abra o navegador e digite o endereço acima.\n2. Toque na tela para colocar em tela cheia.</string>
 </resources>

@@ -19,6 +19,7 @@ object Bridge {
         val height: Int = 0,
         val mode: String = "",
         val rotation: Int = 0,
+        val audio: Boolean = false,
         val error: String? = null,
     )
 

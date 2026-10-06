@@ -22,6 +22,11 @@ class StreamServer(
     private val viewers = CopyOnWriteArrayList<Viewer>()
     private val viewerCount = AtomicInteger(0)
 
+    private val audioClients = CopyOnWriteArrayList<AudioClient>()
+    private val audioClientCount = AtomicInteger(0)
+    private val audioBytesSent = AtomicLong(0)
+    private val audioFramesSent = AtomicLong(0)
+
     private val bytesSent = AtomicLong(0)
     private val framesSent = AtomicLong(0)
     private val startedAt = AtomicLong(0L)
@@ -38,6 +43,18 @@ class StreamServer(
 
     @Volatile
     private var latestFrame: ByteArray? = null
+
+    /**
+     * O audio viaja em outro fluxo, porque o multipart/x-mixed-replace é só de
+     * imagem. Cada cliente de audio mantem apenas o quadro mais novo: um
+     * quadro velho demais e pior que perder, porque tocar audio atrasado
+     * desconecta do video.
+     */
+    @Volatile
+    private var latestAudio: ByteArray? = null
+
+    @Volatile
+    private var audioAvailable = false
 
     /**
      * Geometria do quadro atual. O player da TV consulta isso pelo heartbeat
@@ -58,7 +75,13 @@ class StreamServer(
 
     val clientCount: Int get() = viewerCount.get()
 
+    val audioListenerCount: Int get() = audioClientCount.get()
+
+    val hasAudio: Boolean get() = audioAvailable && latestAudio != null
+
     val latestJpeg: ByteArray? get() = latestFrame
+
+    val latestAudioChunk: ByteArray? get() = latestAudio
 
     fun start(preferredPort: Int, attempts: Int = 12): Int {
         if (running) return port
@@ -100,12 +123,19 @@ class StreamServer(
         viewers.forEach { it.closeQuietly() }
         viewers.clear()
         viewerCount.set(0)
+        audioClients.forEach { it.closeQuietly() }
+        audioClients.clear()
+        audioClientCount.set(0)
         latestFrame = null
+        latestAudio = null
+        audioAvailable = false
         streamWidth = 0
         streamHeight = 0
         streamRotation = 0
         bytesSent.set(0)
         framesSent.set(0)
+        audioBytesSent.set(0)
+        audioFramesSent.set(0)
         acceptThread = null
         log("Servidor encerrado")
     }
@@ -116,6 +146,24 @@ class StreamServer(
         for (viewer in viewers) {
             viewer.offer(frame)
         }
+    }
+
+    /** Quadro ADTS do pipeline de audio; quem não pede audio simplesmente ignora. */
+    fun publishAudio(chunk: ByteArray) {
+        audioAvailable = true
+        latestAudio = chunk
+        if (audioClients.isEmpty()) return
+        for (client in audioClients) {
+            client.offer(chunk)
+        }
+    }
+
+    /** O player da TV descobre por aqui se vale a pena tentar tocar som. */
+    fun setAudioAvailable(available: Boolean) {
+        if (audioAvailable == available) return
+        audioAvailable = available
+        if (!available) latestAudio = null
+        log(if (available) "Áudio disponível para a TV" else "Áudio indisponível")
     }
 
     fun clearStream() {
@@ -137,14 +185,20 @@ class StreamServer(
         val totalBytes = bytesSent.get()
         val kbps = if (seconds > 0.5) ((totalBytes * 8.0) / seconds / 1000.0).toInt() else 0
         val fps = if (seconds > 0.5) (framesSent.get() / seconds).toInt() else 0
+        val audioKbps = if (seconds > 0.5) ((audioBytesSent.get() * 8.0) / seconds / 1000.0).toInt() else 0
         return """{"clients":${viewerCount.get()},"streaming":${latestFrame != null},""" +
             """"kbps":$kbps,"fps":$fps,"port":$port,""" +
-            """"width":$streamWidth,"height":$streamHeight,"rotation":$streamRotation}"""
+            """"width":$streamWidth,"height":$streamHeight,"rotation":$streamRotation,""" +
+            """"audio":${latestAudio != null},""" +
+            """"audioReady":$audioAvailable,""" +
+            """"audioClients":${audioClientCount.get()},"audioKbps":$audioKbps}"""
     }
 
     fun resetCounters() {
         bytesSent.set(0)
         framesSent.set(0)
+        audioBytesSent.set(0)
+        audioFramesSent.set(0)
         startedAt.set(System.nanoTime())
     }
 
@@ -166,6 +220,7 @@ class StreamServer(
 
     private fun handle(socket: Socket) {
         var viewer: Viewer? = null
+        var audioClient: AudioClient? = null
         try {
             socket.tcpNoDelay = true
             socket.soTimeout = 15_000
@@ -193,6 +248,15 @@ class StreamServer(
                     streamTo(v)
                 }
 
+                "/audio.aac", "/audio", "/som" -> {
+                    val client = AudioClient(socket, output)
+                    audioClient = client
+                    audioClients.add(client)
+                    audioClientCount.set(audioClients.size)
+                    log("TV ouvindo áudio: ${socket.inetAddress.hostAddress}")
+                    streamAudio(client)
+                }
+
                 "/snapshot.jpg", "/snapshot", "/frame.jpg" -> sendSnapshot(output)
 
                 "/heartbeat", "/status" -> sendText(output, "application/json", statsJson())
@@ -216,6 +280,11 @@ class StreamServer(
                 viewers.remove(it)
                 viewerCount.set(viewers.size)
                 log("TV desconectada (${viewers.size} na rede)")
+                it.closeQuietly()
+            }
+            audioClient?.let {
+                audioClients.remove(it)
+                audioClientCount.set(audioClients.size)
                 it.closeQuietly()
             }
             try {
@@ -288,8 +357,36 @@ class StreamServer(
         output.flush()
     }
 
-    private fun streamTo(viewer: Viewer) {
+    /**
+     * Envia o ADTS em chunked. Sem Content-Length porque o fluxo não acaba, e
+     * o TV só precisa do primeiro quadro para começar a tocar.
+     */
+    private fun streamAudio(client: AudioClient) {
         val head = buildString {
+            append("HTTP/1.1 200 OK\r\n")
+            append("Content-Type: audio/aac\r\n")
+            append("Transfer-Encoding: chunked\r\n")
+            append("Cache-Control: no-store, no-cache, must-revalidate, max-age=0\r\n")
+            append("Pragma: no-cache\r\n")
+            append(EXTRA_HEADERS)
+            append("Connection: close\r\n\r\n")
+        }
+        client.writeHead(head.toByteArray(Charsets.US_ASCII))
+
+        val deadline = System.currentTimeMillis() + 10_000
+        while (client.isAlive && running && latestAudio == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(40)
+        }
+
+        while (client.isAlive && running) {
+            val chunk = client.nextChunk() ?: break
+            client.writeChunk(chunk)
+            audioFramesSent.incrementAndGet()
+            audioBytesSent.addAndGet(chunk.size.toLong())
+        }
+    }
+
+    private fun streamTo(viewer: Viewer) {        val head = buildString {
             append("HTTP/1.1 200 OK\r\n")
             append("Content-Type: multipart/x-mixed-replace; boundary=$boundary\r\n")
             append("Cache-Control: no-cache, no-store, must-revalidate, max-age=0\r\n")
@@ -345,6 +442,77 @@ class StreamServer(
     }
 
     private class Request(val method: String, val target: String)
+
+    private inner class AudioClient(
+        private val socket: Socket,
+        private val output: OutputStream,
+    ) {
+        private val lock = Object()
+        private var pending: ByteArray? = null
+        private var closed = false
+
+        val isAlive: Boolean
+            get() = !closed && !socket.isClosed && !socket.isOutputShutdown
+
+        fun offer(chunk: ByteArray) {
+            synchronized(lock) {
+                if (closed) return
+                pending = chunk
+                lock.notifyAll()
+            }
+        }
+
+        fun nextChunk(): ByteArray? {
+            synchronized(lock) {
+                var spins = 0
+                while (pending == null && !closed) {
+                    try {
+                        lock.wait(1000)
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        return null
+                    }
+                    if (++spins > 600) return null
+                }
+                val chunk = pending
+                pending = null
+                return chunk
+            }
+        }
+
+        fun writeHead(bytes: ByteArray) = writeRaw(bytes)
+
+        /** Framing de chunked: tamanho em hex, CRLF, dados, CRLF. */
+        fun writeChunk(bytes: ByteArray) {
+            try {
+                writeRaw(("${bytes.size.toString(16)}\r\n").toByteArray(Charsets.US_ASCII))
+                writeRaw(bytes)
+                writeRaw(CRLF)
+            } catch (e: IOException) {
+                markClosed()
+                throw e
+            }
+        }
+
+        private fun writeRaw(bytes: ByteArray) {
+            if (closed) throw SocketException("conexão encerrada")
+            output.write(bytes)
+            output.flush()
+        }
+
+        private fun markClosed() {
+            closed = true
+            synchronized(lock) { lock.notifyAll() }
+        }
+
+        fun closeQuietly() {
+            markClosed()
+            try {
+                socket.close()
+            } catch (_: Throwable) {
+            }
+        }
+    }
 
     private inner class Viewer(
         private val socket: Socket,

@@ -26,8 +26,10 @@ Celular (Android 8+)                    Smart TV
   dimensões, então o quadro chega inteiro na TV, sem tarjas pretas.
 - **Transporte:** servidor HTTP próprio (sem dependências Android) servindo
   `multipart/x-mixed-replace`, que qualquer navegador exibe nativamente.
-- **Vídeo apenas, sem áudio.**
-- Escolha de protocolo pensando em **compatibilidade**: MJPEG abre em
+- **Áudio:** `AudioPlaybackCaptureConfiguration` (o mesmo consentimento do
+  `MediaProjection`) alimenta um `AudioRecord`; o PCM vira AAC pelo
+  `MediaCodec` e sai em `/audio.aac`, um fluxo ADTS em chunked.
+- Escolha de protocolo pensando em **compatibilidade**: MJPEG e ADTS abrem em
   qualquer TV, mesmo com navegador antigo ou bloqueado. H.264/WebRTC seria
   mais eficiente, mas não é aceito em toda parte.
 
@@ -71,7 +73,20 @@ buffer.
   e o player da TV reajusta a proporção sozinho.
 - Android 8–9 (`minSdk 24`) não tem esses métodos, então a stream mantém a
   orientação em que foi iniciada. O app avisa na tela quando detecta isso.
-- Sem áudio, por opção de projeto.
+- **Áudio exige Android 10.** Abaixo disso não existe
+  `AudioPlaybackCaptureConfiguration`, então a TV fica só com o vídeo.
+- **Conteúdo protegido não tem áudio.** Netflix, Spotify Premium e afins usam
+  DRM, que o Android não entrega a nenhum app. Também não sai áudio de apps
+  que desligaram a captura por política, nem de tela com `FLAG_SECURE`.
+- **O áudio atrasa em relação ao vídeo.** Não existe âncora comum entre os
+  dois: o vídeo vai por MJPEG e o áudio por outro fluxo, com buffer próprio.
+  Na prática o som fica alguns centenas de milissegundos atrás da imagem.
+- **O celular continua tocando o som.** Como o áudio do sistema é capturado,
+  você ouve no alto-falante do celular e na TV ao mesmo tempo. Para evitar a
+  duplicação, use fone no celular ou abaixe o volume dele.
+- **O navegador da TV pode exigir um toque para liberar o som.** Política de
+  autoplay não permite tocar áudio com som antes de um gesto do usuário. O
+  player avisa na barra e libera no primeiro clique ou tecla.
 - O desempenho real em smart TV não foi medido em hardware de consumo; a
   validação foi feita em emulador com renderização por software.
 

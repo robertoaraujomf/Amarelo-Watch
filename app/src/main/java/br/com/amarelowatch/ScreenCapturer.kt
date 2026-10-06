@@ -48,6 +48,13 @@ class ScreenCapturer(
         fun onLog(message: String)
         fun onStopped(reason: String)
         fun onGeometry(width: Int, height: Int, mode: String, rotation: Int)
+
+        /**
+         * A mesma instância que autoriza o vídeo também autoriza o áudio
+         * (AudioPlaybackCaptureConfiguration). Entregamos a referência para
+         * que o AudioCapturer suba no mesmo contexto e liberação.
+         */
+        fun onProjection(projection: MediaProjection)
     }
 
     private val running = AtomicBoolean(false)
@@ -343,6 +350,7 @@ class ScreenCapturer(
         val manager = context.getSystemService(MediaProjectionManager::class.java)
         val proj = manager.getMediaProjection(resultCode, tokenData)
         projection = proj
+        listener.onProjection(proj)
 
         val thread = HandlerThread("amarelo-media", Process.THREAD_PRIORITY_DISPLAY)
         thread.start()
